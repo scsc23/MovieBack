@@ -163,10 +163,10 @@ public class CustomSecurityConfig {
         configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE"));
 
         // 허용할 헤더만 지정
-        configuration.setAllowedHeaders(List.of("Authorization", "Content-Type", "X-Requested-With"));
+        configuration.setAllowedHeaders(List.of("*"));
 
         // 클라이언트에 노출할 헤더 지정
-        configuration.setExposedHeaders(List.of("Authorization", "Content-Type"));
+        configuration.setExposedHeaders(List.of("*"));
 
         // 자격 증명 허용
         configuration.setAllowCredentials(true);
