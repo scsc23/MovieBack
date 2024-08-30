@@ -14,6 +14,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
@@ -29,8 +30,20 @@ public class UpDownController {
 
     @PostMapping("/upload")
     public ResponseEntity<UploadResultDTO> uploadOrUpdateImage(@RequestParam("file") MultipartFile file,
-                                                               @RequestParam("memberNo") Integer memberNo) {
+                                                               @RequestParam("memberNo") Integer memberNo) throws IOException {
+        // 이미지 업로드 및 결과 받기
         UploadResultDTO result = imageService.uploadImage(file, memberNo);
+
+        // 임시 파일 경로 얻기
+        String tempFilePath = Paths.get(System.getProperty("java.io.tmpdir"), "images", file.getOriginalFilename()).toString();
+
+        // 임시 파일 삭제
+        File tempFile = new File(tempFilePath);
+        if (tempFile.exists()) {
+            Files.delete(tempFile.toPath());
+            log.info("Temporary file deleted: {}", tempFilePath);
+        }
+
         return ResponseEntity.status(HttpStatus.CREATED).body(result);
     }
 
@@ -38,24 +51,17 @@ public class UpDownController {
     public ResponseEntity<Resource> readImage(@PathVariable Integer memberNo) throws IOException {
         Image image = imageService.getImage(memberNo);
         if (image != null) {
-            // S3에서 이미지를 가져오기 위한 InputStream 얻기
             InputStream inputStream = imageService.getImageInputStream(image.getFilePath());
 
             Resource resource = new InputStreamResource(inputStream);
 
-            // MIME 타입을 동적으로 가져오기 위해 파일 경로에서 추론
-            String contentType = Files.probeContentType(Paths.get(image.getFilePath()));
-            if (contentType == null) {
-                contentType = "application/octet-stream"; // 기본값 설정
-            }
-
             HttpHeaders headers = new HttpHeaders();
-            headers.add(HttpHeaders.CONTENT_TYPE, contentType);
+            headers.add(HttpHeaders.CONTENT_TYPE, Files.probeContentType(Paths.get(image.getFilePath())));
             headers.add(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"" + image.getUuid() + "\"");
 
             return ResponseEntity.ok()
                     .headers(headers)
-                    .contentType(MediaType.parseMediaType(contentType))
+                    .contentType(MediaType.parseMediaType(Files.probeContentType(Paths.get(image.getFilePath()))))
                     .body(resource);
         } else {
             return ResponseEntity.notFound().build();
@@ -68,9 +74,10 @@ public class UpDownController {
         return ResponseEntity.noContent().build();
     }
 
-    @ExceptionHandler({IllegalArgumentException.class, RuntimeException.class})
+    @ExceptionHandler({ IllegalArgumentException.class, RuntimeException.class })
     public ResponseEntity<String> handleException(Exception ex) {
         log.error("Exception occurred: {}", ex.getMessage());
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(ex.getMessage());
     }
+
 }
