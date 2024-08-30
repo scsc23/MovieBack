@@ -156,8 +156,7 @@ public class CustomSecurityConfig {
         CorsConfiguration configuration = new CorsConfiguration();
         // 허용할 도메인만 지정
         configuration.setAllowedOrigins(List.of(
-//                "http://moviefront-env.eba-r8jmajf2.ap-northeast-2.elasticbeanstalk.com/",
-                "http://www.moviepunk.o-r.kr"
+                "https://www.moviepunk.o-r.kr"
         ));
 
         // 허용할 HTTP 메서드만 지정
