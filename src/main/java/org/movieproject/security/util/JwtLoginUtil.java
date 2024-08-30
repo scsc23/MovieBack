@@ -38,14 +38,14 @@ public class JwtLoginUtil {
         accessTokenCookie.setHttpOnly(true);
         accessTokenCookie.setPath("/");
         accessTokenCookie.setMaxAge(60*15); // 15분
-        accessTokenCookie.setDomain("MovieFront-env.eba-r8jmajf2.ap-northeast-2.elasticbeanstalk.com");
+        accessTokenCookie.setDomain(".moviepunk.o-r.kr");
 
         // 리프레시 토큰 쿠키 생성
         Cookie refreshTokenCookie = new Cookie("refreshToken", refreshToken);
         refreshTokenCookie.setHttpOnly(true);
         refreshTokenCookie.setPath("/");
         refreshTokenCookie.setMaxAge(60*90); // 90분
-        refreshTokenCookie.setDomain("MovieFront-env.eba-r8jmajf2.ap-northeast-2.elasticbeanstalk.com");
+        refreshTokenCookie.setDomain(".moviepunk.o-r.kr");
 
         // 쿠키를 응답에 추가
         response.addCookie(accessTokenCookie);
