@@ -1,14 +1,14 @@
 package org.movieproject.security.util;
 
 import com.google.gson.Gson;
-import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
 import org.movieproject.security.JwtProvider;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
+import org.springframework.http.ResponseCookie;
 import org.springframework.security.core.Authentication;
-import org.springframework.security.core.GrantedAuthority;
 import org.springframework.stereotype.Component;
 
 import java.io.IOException;
@@ -34,22 +34,28 @@ public class JwtLoginUtil {
         String refreshToken = jwtProvider.generateToken(claim, 60);
 
         // 액세스 토큰 쿠키 생성
-        Cookie accessTokenCookie = new Cookie("accessToken", accessToken);
-        accessTokenCookie.setHttpOnly(true);
-        accessTokenCookie.setPath("/");
-        accessTokenCookie.setMaxAge(60*15); // 15분
-        accessTokenCookie.setDomain("moviepunk.o-r.kr");
+        ResponseCookie accessTokenCookie = ResponseCookie.from("accessToken", accessToken)
+                .httpOnly(true)
+                .secure(true)
+                .path("/")
+                .maxAge(60 * 15) // 15분
+                .domain("moviepunk.o-r.kr")
+                .sameSite("Lax")
+                .build();
 
         // 리프레시 토큰 쿠키 생성
-        Cookie refreshTokenCookie = new Cookie("refreshToken", refreshToken);
-        refreshTokenCookie.setHttpOnly(true);
-        refreshTokenCookie.setPath("/");
-        refreshTokenCookie.setMaxAge(60*90); // 90분
-        refreshTokenCookie.setDomain("moviepunk.o-r.kr");
+        ResponseCookie refreshTokenCookie = ResponseCookie.from("refreshToken", refreshToken)
+                .httpOnly(true)
+                .secure(true)
+                .path("/")
+                .maxAge(60 * 90) // 90분
+                .domain("moviepunk.o-r.kr")
+                .sameSite("Lax")
+                .build();
 
         // 쿠키를 응답에 추가
-        response.addCookie(accessTokenCookie);
-        response.addCookie(refreshTokenCookie);
+        response.addHeader(HttpHeaders.SET_COOKIE, accessTokenCookie.toString());
+        response.addHeader(HttpHeaders.SET_COOKIE, refreshTokenCookie.toString());
 
         String jsonStr = gson.toJson(claim);
 

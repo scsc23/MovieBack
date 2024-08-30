@@ -11,7 +11,9 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
 import org.movieproject.security.exception.RefreshTokenException;
 import org.movieproject.security.JwtProvider;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
+import org.springframework.http.ResponseCookie;
 import org.springframework.web.filter.OncePerRequestFilter;
 import org.springframework.web.util.WebUtils;
 
@@ -145,18 +147,29 @@ public class RefreshTokenFilter extends OncePerRequestFilter {
 
     private void sendTokens(String accessTokenValue, String refreshTokenValue, HttpServletResponse response) {
 
-        Cookie accessTokenCookie = new Cookie("accessToken", accessTokenValue);
-        accessTokenCookie.setHttpOnly(true);
-        accessTokenCookie.setPath("/");
-        accessTokenCookie.setMaxAge(60*15); // 15분
+        // Access Token Cookie 생성
+        ResponseCookie accessTokenCookie = ResponseCookie.from("accessToken", accessTokenValue)
+                .httpOnly(true)
+                .secure(true) // HTTPS를 사용하는 경우 secure 설정
+                .path("/")
+                .maxAge(60 * 15) // 15분
+                .sameSite("Lax") // SameSite 설정
+                .domain("moviepunk.o-r.kr")
+                .build();
 
-        Cookie refreshTokenCookie = new Cookie("refreshToken", refreshTokenValue);
-        refreshTokenCookie.setHttpOnly(true);
-        refreshTokenCookie.setPath("/");
-        refreshTokenCookie.setMaxAge(60*90); // 90분
+        // Refresh Token Cookie 생성
+        ResponseCookie refreshTokenCookie = ResponseCookie.from("refreshToken", refreshTokenValue)
+                .httpOnly(true)
+                .secure(true) // HTTPS를 사용하는 경우 secure 설정
+                .path("/")
+                .maxAge(60 * 90) // 90분
+                .sameSite("Lax") // SameSite 설정
+                .domain("moviepunk.o-r.kr")
+                .build();
 
-        response.addCookie(accessTokenCookie);
-        response.addCookie(refreshTokenCookie);
+        // 쿠키를 응답에 추가
+        response.addHeader(HttpHeaders.SET_COOKIE, accessTokenCookie.toString());
+        response.addHeader(HttpHeaders.SET_COOKIE, refreshTokenCookie.toString());
 
         response.setContentType(MediaType.APPLICATION_JSON_VALUE);
 

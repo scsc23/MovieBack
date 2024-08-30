@@ -16,7 +16,9 @@ import org.movieproject.member.repository.MemberRepository;
 import org.movieproject.member.service.MemberService;
 import org.movieproject.post.dto.PostDTO;
 import org.movieproject.security.JwtProvider;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseCookie;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -211,7 +213,7 @@ public class MemberController {
         String refreshToken = null;
 
         if (request.getCookies() != null) {
-            for (Cookie cookie : request.getCookies()) {
+            for (jakarta.servlet.http.Cookie cookie : request.getCookies()) {
                 if ("accessToken".equals(cookie.getName())) {
                     accessToken = cookie.getValue();
                 }
@@ -225,20 +227,28 @@ public class MemberController {
         jwtProvider.invalidateToken(refreshToken);
 
         // accessToken 쿠키 삭제
-        Cookie accessTokenCookie = new Cookie("accessToken", null);
-        accessTokenCookie.setHttpOnly(true);
-        accessTokenCookie.setPath("/");
-        accessTokenCookie.setMaxAge(0); // 쿠키 만료
-        accessTokenCookie.setDomain("moviepunk.o-r.kr");
-        response.addCookie(accessTokenCookie);
+        ResponseCookie accessTokenCookie = ResponseCookie.from("accessToken", "")
+                .httpOnly(true)
+                .secure(true)
+                .path("/")
+                .maxAge(0) // 쿠키 만료
+                .domain("moviepunk.o-r.kr")
+                .sameSite("Lax")
+                .build();
 
         // refreshToken 쿠키 삭제
-        Cookie refreshTokenCookie = new Cookie("refreshToken", null);
-        refreshTokenCookie.setHttpOnly(true);
-        refreshTokenCookie.setPath("/");
-        refreshTokenCookie.setMaxAge(0); // 쿠키 만료
-        refreshTokenCookie.setDomain("moviepunk.o-r.kr");
-        response.addCookie(refreshTokenCookie);
+        ResponseCookie refreshTokenCookie = ResponseCookie.from("refreshToken", "")
+                .httpOnly(true)
+                .secure(true)
+                .path("/")
+                .maxAge(0) // 쿠키 만료
+                .domain("moviepunk.o-r.kr")
+                .sameSite("Lax")
+                .build();
+
+        // 쿠키를 응답에 추가
+        response.addHeader(HttpHeaders.SET_COOKIE, accessTokenCookie.toString());
+        response.addHeader(HttpHeaders.SET_COOKIE, refreshTokenCookie.toString());
 
         return ResponseEntity.ok().build();
     }
