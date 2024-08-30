@@ -237,7 +237,7 @@ public class MemberController {
         refreshTokenCookie.setHttpOnly(true);
         refreshTokenCookie.setPath("/");
         refreshTokenCookie.setMaxAge(0); // 쿠키 만료
-        accessTokenCookie.setDomain("moviepunk.o-r.kr");
+        refreshTokenCookie.setDomain("moviepunk.o-r.kr");
         response.addCookie(refreshTokenCookie);
 
         return ResponseEntity.ok().build();
