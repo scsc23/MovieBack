@@ -156,8 +156,7 @@ public class CustomSecurityConfig {
         CorsConfiguration configuration = new CorsConfiguration();
         // 허용할 도메인만 지정
         configuration.setAllowedOrigins(List.of(
-                "http://ec2-43-202-199-97.ap-northeast-2.compute.amazonaws.com:8080",
-                "http://movie-front-env-1.eba-86ekffjf.ap-northeast-2.elasticbeanstalk.com"
+                "http://moviefront-env.eba-r8jmajf2.ap-northeast-2.elasticbeanstalk.com/"
         ));
 
         // 허용할 HTTP 메서드만 지정
