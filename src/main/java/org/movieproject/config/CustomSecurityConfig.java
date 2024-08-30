@@ -154,27 +154,38 @@ public class CustomSecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
-        // 허용할 도메인만 지정
+
+        // 허용할 도메인을 명시적으로 지정
         configuration.setAllowedOrigins(List.of(
                 "https://www.moviepunk.o-r.kr"
         ));
 
-        // 허용할 HTTP 메서드만 지정
+        // 허용할 HTTP 메서드 지정
         configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE"));
 
-        // 허용할 헤더만 지정
-        configuration.setAllowedHeaders(List.of("*"));
+        // 허용할 헤더를 명시적으로 지정
+        configuration.setAllowedHeaders(List.of(
+                "Authorization",
+                "Cache-Control",
+                "Content-Type",
+                "X-Requested-With"
+        ));
 
-        // 클라이언트에 노출할 헤더 지정
-        configuration.setExposedHeaders(List.of("*"));
+        // 노출할 헤더를 명시적으로 지정
+        configuration.setExposedHeaders(List.of(
+                "Authorization",
+                "Content-Type"
+        ));
 
         // 자격 증명 허용
         configuration.setAllowCredentials(true);
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", configuration);
+
         return source;
     }
+
 
     // Token Check Filter 생성
     private TokenCheckFilter tokenCheckFilter(JwtProvider jwtProvider, MvpUserDetailsService mvpUserDetailsService) {
