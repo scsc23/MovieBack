@@ -1,6 +1,7 @@
 package org.movieproject.upload.service;
 
 import com.amazonaws.services.s3.AmazonS3;
+import com.amazonaws.services.s3.model.GetObjectRequest;
 import com.amazonaws.services.s3.model.ObjectMetadata;
 import lombok.RequiredArgsConstructor;
 import net.coobird.thumbnailator.Thumbnails;
@@ -110,6 +111,11 @@ public class ImageServiceImpl implements ImageService {
         return imageRepository.findByMember_memberNo(memberNo);
     }
 
+    // S3에서 파일 가져오기 위한 메서드 추가
+    public InputStream getImageInputStream(String filePath) {
+        return amazonS3.getObject(new GetObjectRequest(bucketName, extractFileNameFromUrl(filePath))).getObjectContent();
+    }
+
     private String uploadFileToS3(MultipartFile file, String fileName) throws IOException {
         try (InputStream inputStream = file.getInputStream()) {
             ObjectMetadata metadata = new ObjectMetadata();
@@ -122,13 +128,12 @@ public class ImageServiceImpl implements ImageService {
     }
 
     private String createAndUploadThumbnail(MultipartFile file, String uuid, String originalFileName) throws IOException {
-        // 썸네일 생성 (로컬 파일로 작업한 후 S3에 업로드)
+        // S3에 직접 업로드하는 대신, 임시로 생성한 썸네일을 S3에 업로드
         Path tempThumbnailPath = Files.createTempFile(uuid, "_thumb_" + originalFileName);
         Thumbnails.of(file.getInputStream())
                 .size(100, 100)
                 .toFile(tempThumbnailPath.toFile());
 
-        // S3에 썸네일 업로드
         String thumbnailFileName = "thumb_" + originalFileName;
         try (InputStream thumbnailInputStream = Files.newInputStream(tempThumbnailPath)) {
             ObjectMetadata metadata = new ObjectMetadata();
@@ -143,8 +148,12 @@ public class ImageServiceImpl implements ImageService {
     }
 
     private void deleteFileFromS3(String fileUrl) {
-        String fileName = fileUrl.substring(fileUrl.lastIndexOf("/") + 1);
+        String fileName = extractFileNameFromUrl(fileUrl);
         amazonS3.deleteObject(bucketName, fileName);
+    }
+
+    private String extractFileNameFromUrl(String fileUrl) {
+        return fileUrl.substring(fileUrl.lastIndexOf("/") + 1);
     }
 
     private boolean isSupportedFileType(String fileExtension) {
