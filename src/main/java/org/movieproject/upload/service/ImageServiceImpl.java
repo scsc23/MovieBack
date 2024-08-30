@@ -30,7 +30,7 @@ public class ImageServiceImpl implements ImageService {
     private final MemberRepository memberRepository;
     private final AmazonS3 amazonS3;
 
-    @Value("${cloud.aws.s3.bucketName}")
+    @Value("${cloud.aws.s3.bucket}")
     private String bucketName;
 
     @Override
