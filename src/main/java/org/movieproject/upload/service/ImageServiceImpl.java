@@ -1,5 +1,7 @@
 package org.movieproject.upload.service;
 
+import com.amazonaws.services.s3.AmazonS3;
+import com.amazonaws.services.s3.model.ObjectMetadata;
 import lombok.RequiredArgsConstructor;
 import net.coobird.thumbnailator.Thumbnails;
 import org.movieproject.member.entity.Member;
@@ -13,9 +15,9 @@ import org.springframework.util.StringUtils;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.Arrays;
 import java.util.List;
 import java.util.UUID;
@@ -26,11 +28,11 @@ public class ImageServiceImpl implements ImageService {
 
     private final ImageRepository imageRepository;
     private final MemberRepository memberRepository;
+    private final AmazonS3 amazonS3;
 
-    @Value("${org.movieproject.file.path}")
-    private String uploadDirectory;
+    @Value("${cloud.aws.s3.bucketName}")
+    private String bucketName;
 
-    // 이미지 업로드 기능 구현
     @Override
     public UploadResultDTO uploadImage(MultipartFile file, Integer memberNo) {
         if (file.isEmpty()) {
@@ -46,7 +48,6 @@ public class ImageServiceImpl implements ImageService {
             String originalFileName = StringUtils.cleanPath(file.getOriginalFilename());
             String fileExtension = originalFileName.substring(originalFileName.lastIndexOf(".") + 1).toLowerCase();
 
-            // 확장자 검사
             if (!isSupportedFileType(fileExtension)) {
                 throw new IllegalArgumentException("Only jpg, jpeg, png, gif files are allowed");
             }
@@ -54,45 +55,26 @@ public class ImageServiceImpl implements ImageService {
             String uuid = UUID.randomUUID().toString();
             String fileName = uuid + "_" + originalFileName;
 
-            Path uploadPath = Paths.get(uploadDirectory);
-            if (!Files.exists(uploadPath)) {
-                Files.createDirectories(uploadPath);
-            }
-            Path filePath = uploadPath.resolve(fileName);
-            Files.copy(file.getInputStream(), filePath);
+            // S3에 파일 업로드
+            String fileUrl = uploadFileToS3(file, fileName);
 
-            // 썸네일 생성
-            Path thumbnailFilePath = uploadPath.resolve("thumb_" + fileName);
-            Thumbnails.of(filePath.toFile())
-                    .size(100, 100) // 썸네일 크기 설정
-                    .toFile(thumbnailFilePath.toFile());
+            // 썸네일 생성 및 업로드
+            String thumbnailFileUrl = createAndUploadThumbnail(file, uuid, fileName);
 
             Image image;
             if (existingImage == null) {
-                // 새로운 이미지 업로드
                 image = Image.builder()
                         .uuid(uuid)
-                        .filePath(filePath.toString())
-                        .thumbnailPath(thumbnailFilePath.toString())
+                        .filePath(fileUrl)
+                        .thumbnailPath(thumbnailFileUrl)
                         .member(member)
                         .build();
             } else {
-                // 이미지 업데이트
-                // 기존 파일 삭제
-                Path oldFilePath = Paths.get(existingImage.getFilePath());
-                Files.deleteIfExists(oldFilePath);
+                // 기존 파일과 썸네일 삭제
+                deleteFileFromS3(existingImage.getFilePath());
+                deleteFileFromS3(existingImage.getThumbnailPath());
 
-                // 기존 썸네일 파일 삭제
-                Path oldThumbnailFilePath = Paths.get(existingImage.getThumbnailPath());
-                Files.deleteIfExists(oldThumbnailFilePath);
-
-                // 새로운 썸네일 생성
-                Thumbnails.of(filePath.toFile())
-                        .size(100, 100) // 썸네일 크기 설정
-                        .toFile(thumbnailFilePath.toFile());
-
-                // 이미지 정보 업데이트
-                existingImage.changeImage(uuid, filePath.toString(), thumbnailFilePath.toString());
+                existingImage.changeImage(uuid, fileUrl, thumbnailFileUrl);
                 image = existingImage;
             }
 
@@ -100,8 +82,8 @@ public class ImageServiceImpl implements ImageService {
 
             return UploadResultDTO.builder()
                     .uuid(uuid)
-                    .filePath(filePath.toString())
-                    .thumbnailPath(thumbnailFilePath.toString())
+                    .filePath(fileUrl)
+                    .thumbnailPath(thumbnailFileUrl)
                     .memberNo(memberNo)
                     .build();
 
@@ -110,7 +92,6 @@ public class ImageServiceImpl implements ImageService {
         }
     }
 
-    // 이미지 삭제
     @Override
     public void deleteImage(Integer memberNo) {
         Image image = imageRepository.findByMember_memberNo(memberNo);
@@ -118,22 +99,54 @@ public class ImageServiceImpl implements ImageService {
             throw new IllegalArgumentException("Image Not Found");
         }
 
-        Path filePath = Paths.get(image.getFilePath());
-        try {
-            Files.deleteIfExists(filePath);
-        } catch (IOException e) {
-            throw new RuntimeException("Failed to delete file", e);
-        }
+        deleteFileFromS3(image.getFilePath());
+        deleteFileFromS3(image.getThumbnailPath());
+
         imageRepository.delete(image);
     }
 
-    // 이미지 조회
     @Override
     public Image getImage(Integer memberNo) {
         return imageRepository.findByMember_memberNo(memberNo);
     }
 
-    // 허용된 파일 확장자 목록 검사
+    private String uploadFileToS3(MultipartFile file, String fileName) throws IOException {
+        try (InputStream inputStream = file.getInputStream()) {
+            ObjectMetadata metadata = new ObjectMetadata();
+            metadata.setContentLength(file.getSize());
+            metadata.setContentType(file.getContentType());
+
+            amazonS3.putObject(bucketName, fileName, inputStream, metadata);
+            return amazonS3.getUrl(bucketName, fileName).toString();
+        }
+    }
+
+    private String createAndUploadThumbnail(MultipartFile file, String uuid, String originalFileName) throws IOException {
+        // 썸네일 생성 (로컬 파일로 작업한 후 S3에 업로드)
+        Path tempThumbnailPath = Files.createTempFile(uuid, "_thumb_" + originalFileName);
+        Thumbnails.of(file.getInputStream())
+                .size(100, 100)
+                .toFile(tempThumbnailPath.toFile());
+
+        // S3에 썸네일 업로드
+        String thumbnailFileName = "thumb_" + originalFileName;
+        try (InputStream thumbnailInputStream = Files.newInputStream(tempThumbnailPath)) {
+            ObjectMetadata metadata = new ObjectMetadata();
+            metadata.setContentLength(Files.size(tempThumbnailPath));
+            metadata.setContentType(Files.probeContentType(tempThumbnailPath));
+
+            amazonS3.putObject(bucketName, thumbnailFileName, thumbnailInputStream, metadata);
+            return amazonS3.getUrl(bucketName, thumbnailFileName).toString();
+        } finally {
+            Files.deleteIfExists(tempThumbnailPath);
+        }
+    }
+
+    private void deleteFileFromS3(String fileUrl) {
+        String fileName = fileUrl.substring(fileUrl.lastIndexOf("/") + 1);
+        amazonS3.deleteObject(bucketName, fileName);
+    }
+
     private boolean isSupportedFileType(String fileExtension) {
         List<String> supportedExtensions = Arrays.asList("jpg", "jpeg", "png", "gif");
         return supportedExtensions.contains(fileExtension);

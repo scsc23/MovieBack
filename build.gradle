@@ -82,7 +82,6 @@ dependencies {
     // Web Client
     implementation 'org.springframework.boot:spring-boot-starter-webflux'
 
-
     // compile 정리
     compileJava.dependsOn('clean')
 
@@ -90,7 +89,7 @@ dependencies {
     testImplementation group: 'org.assertj', name: 'assertj-core', version: '3.26.0'
     testImplementation 'org.assertj:assertj-core:3.24.2'
 
-
+    implementation 'org.springframework.cloud:spring-cloud-starter-aws:2.2.6.RELEASE'
 }
 
 tasks.named('test') {
