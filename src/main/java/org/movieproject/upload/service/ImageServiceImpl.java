@@ -17,8 +17,6 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.net.URLEncoder;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
@@ -48,7 +46,6 @@ public class ImageServiceImpl implements ImageService {
         Image existingImage = imageRepository.findByMember_memberNo(memberNo);
 
         try {
-            // 파일명 URL 인코딩
             String originalFileName = StringUtils.cleanPath(file.getOriginalFilename());
             String fileExtension = originalFileName.substring(originalFileName.lastIndexOf(".") + 1).toLowerCase();
 
@@ -57,14 +54,13 @@ public class ImageServiceImpl implements ImageService {
             }
 
             String uuid = UUID.randomUUID().toString();
-            String encodedFileName = URLEncoder.encode(uuid + "_" + originalFileName, StandardCharsets.UTF_8);
+            String fileName = uuid + "_" + originalFileName;
 
             // S3에 파일 업로드
-            String fileUrl = uploadFileToS3(file, encodedFileName);
+            String fileUrl = uploadFileToS3(file, fileName);
 
             // 썸네일 생성 및 업로드
-            String thumbnailFileName = URLEncoder.encode("thumb_" + uuid + "_" + originalFileName, StandardCharsets.UTF_8);
-            String thumbnailFileUrl = createAndUploadThumbnail(file, thumbnailFileName);
+            String thumbnailFileUrl = createAndUploadThumbnail(file, uuid, fileName);
 
             Image image;
             if (existingImage == null) {
@@ -115,7 +111,7 @@ public class ImageServiceImpl implements ImageService {
         return imageRepository.findByMember_memberNo(memberNo);
     }
 
-    @Override
+    // S3에서 파일 가져오기 위한 메서드 추가
     public InputStream getImageInputStream(String filePath) {
         return amazonS3.getObject(new GetObjectRequest(bucketName, extractFileNameFromUrl(filePath))).getObjectContent();
     }
@@ -131,13 +127,14 @@ public class ImageServiceImpl implements ImageService {
         }
     }
 
-    private String createAndUploadThumbnail(MultipartFile file, String thumbnailFileName) throws IOException {
+    private String createAndUploadThumbnail(MultipartFile file, String uuid, String originalFileName) throws IOException {
         // S3에 직접 업로드하는 대신, 임시로 생성한 썸네일을 S3에 업로드
-        Path tempThumbnailPath = Files.createTempFile(thumbnailFileName, ".tmp");
+        Path tempThumbnailPath = Files.createTempFile(uuid, "_thumb_" + originalFileName);
         Thumbnails.of(file.getInputStream())
                 .size(100, 100)
                 .toFile(tempThumbnailPath.toFile());
 
+        String thumbnailFileName = "thumb_" + originalFileName;
         try (InputStream thumbnailInputStream = Files.newInputStream(tempThumbnailPath)) {
             ObjectMetadata metadata = new ObjectMetadata();
             metadata.setContentLength(Files.size(tempThumbnailPath));
